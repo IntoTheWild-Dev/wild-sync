@@ -8,6 +8,8 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: write   # needed to create GitHub releases on tag push
     strategy:
       fail-fast: false
       matrix:
@@ -81,8 +83,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Wild Sync ${{ github.ref_name }}
+          # Only create a GitHub release when triggered by a version tag (v*).
+          # For manual workflow_dispatch runs (e.g. testing CI), these are left
+          # empty so tauri-action just builds without trying to publish anything.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Wild Sync {0}', github.ref_name) || '' }}
           releaseBody: |
             ## Wild Sync ${{ github.ref_name }}
 
@@ -93,6 +98,6 @@ jobs:
 
             ### First time on Mac
             Right-click the app → Open → Open Again to bypass Gatekeeper.
-          releaseDraft: true
+          releaseDraft: ${{ startsWith(github.ref, 'refs/tags/') }}
           prerelease: false
           args: --target ${{ matrix.target }}
