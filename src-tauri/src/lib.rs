@@ -2,7 +2,7 @@ use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, Runtime,
+    AppHandle, Emitter, Manager,
 };
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
@@ -33,15 +33,16 @@ pub fn run() {
         .expect("error while running Wild Sync");
 }
 
-fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let status = MenuItem::with_id(app, "status", "Status: Starting...", false, None::<&str>)?;
-    let sep1 = PredefinedMenuItem::separator(app)?;
-    let open_folder = MenuItem::with_id(app, "open_folder", "Open Watched Folder", true, None::<&str>)?;
-    let open_drive = MenuItem::with_id(app, "open_drive", "Open on Drive", true, None::<&str>)?;
-    let sep2 = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Wild Sync", true, None::<&str>)?;
+// Use concrete AppHandle (= AppHandle<Wry>) to avoid generic trait-bound issues
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let status       = MenuItem::with_id(app, "status",      "Status: Starting...",   false, None::<&str>)?;
+    let sep1         = PredefinedMenuItem::separator(app)?;
+    let folder_item  = MenuItem::with_id(app, "open_folder", "Open Watched Folder",   true,  None::<&str>)?;
+    let drive_item   = MenuItem::with_id(app, "open_drive",  "Open on Drive",         true,  None::<&str>)?;
+    let sep2         = PredefinedMenuItem::separator(app)?;
+    let quit         = MenuItem::with_id(app, "quit",        "Quit Wild Sync",        true,  None::<&str>)?;
 
-    let menu = Menu::with_items(app, &[&status, &sep1, &open_folder, &open_drive, &sep2, &quit])?;
+    let menu = Menu::with_items(app, &[&status, &sep1, &folder_item, &drive_item, &sep2, &quit])?;
 
     TrayIconBuilder::new()
         .menu(&menu)
@@ -61,20 +62,37 @@ fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open_folder" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move { let _ = open_watched_folder(app).await; });
-            }
-            "open_drive" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move { let _ = open_drive(app).await; });
-            }
-            "quit" => app.exit(0),
+            "open_folder" => { let _ = do_open_folder(app); }
+            "open_drive"  => { let _ = do_open_drive_url(app); }
+            "quit"        => app.exit(0),
             _ => {}
         })
         .build(app)?;
 
     Ok(())
+}
+
+// ── Sync helpers used by both tray menu and Tauri commands ────────────────────
+
+fn do_open_folder(app: &AppHandle) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    use tauri_plugin_opener::OpenerExt;
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let folder = store.get("watched_folder")
+        .and_then(|v| v.as_str().map(String::from))
+        .ok_or("No folder configured")?;
+    app.opener().open_path(folder, None::<&str>).map_err(|e| e.to_string())
+}
+
+fn do_open_drive_url(app: &AppHandle) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    use tauri_plugin_opener::OpenerExt;
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let drive_id = store.get("destination_drive_id")
+        .and_then(|v| v.as_str().map(String::from))
+        .ok_or("No drive configured")?;
+    let url = format!("https://drive.google.com/drive/folders/{drive_id}");
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
 // ── rclone helpers ────────────────────────────────────────────────────────────
@@ -86,11 +104,7 @@ fn sa_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map(|p| p.join("wild-sync-service-account.json"))
 }
 
-fn write_rclone_config(
-    sa: &std::path::Path,
-    remote_name: &str,
-    drive_id: &str,
-) -> Result<std::path::PathBuf, String> {
+fn write_rclone_config(sa: &std::path::Path, remote_name: &str, drive_id: &str) -> Result<std::path::PathBuf, String> {
     let config_path = std::env::temp_dir().join("wild-sync-rclone.conf");
     let content = format!(
         "[{remote_name}]\ntype = drive\nscope = drive\nservice_account_file = {}\nteam_drive = {drive_id}\n",
@@ -132,8 +146,7 @@ async fn run_rclone(app: &AppHandle, args: Vec<String>) -> Result<String, String
 fn parse_lsjson_names(json: &str) -> Result<Vec<String>, String> {
     let items: Vec<serde_json::Value> = serde_json::from_str(json)
         .map_err(|e| format!("Failed to parse rclone output: {e}"))?;
-    Ok(items
-        .iter()
+    Ok(items.iter()
         .filter_map(|item| {
             if item["IsDir"].as_bool().unwrap_or(false) {
                 item["Name"].as_str().map(String::from)
@@ -148,22 +161,14 @@ fn parse_lsjson_names(json: &str) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 async fn fetch_destinations(app: AppHandle) -> Result<serde_json::Value, String> {
-    let path = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("destinations.json");
+    let path = app.path().resource_dir().map_err(|e| e.to_string())?.join("destinations.json");
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read destinations.json: {e}"))?;
     serde_json::from_str(&content).map_err(|e| format!("Failed to parse destinations.json: {e}"))
 }
 
 #[tauri::command]
-async fn fetch_designer_names(
-    app: AppHandle,
-    rclone_remote: String,
-    drive_id: String,
-) -> Result<Vec<String>, String> {
+async fn fetch_designer_names(app: AppHandle, rclone_remote: String, drive_id: String) -> Result<Vec<String>, String> {
     let sa = sa_path(&app)?;
     let config = write_rclone_config(&sa, &rclone_remote, &drive_id)?;
     let output = run_rclone(&app, vec![
@@ -175,12 +180,7 @@ async fn fetch_designer_names(
 }
 
 #[tauri::command]
-async fn fetch_project_names(
-    app: AppHandle,
-    rclone_remote: String,
-    drive_id: String,
-    designer_name: String,
-) -> Result<Vec<String>, String> {
+async fn fetch_project_names(app: AppHandle, rclone_remote: String, drive_id: String, designer_name: String) -> Result<Vec<String>, String> {
     let sa = sa_path(&app)?;
     let config = write_rclone_config(&sa, &rclone_remote, &drive_id)?;
     let output = run_rclone(&app, vec![
@@ -194,21 +194,17 @@ async fn fetch_project_names(
 #[tauri::command]
 async fn save_config(
     app: AppHandle,
-    designer_name: String,
-    project_name: String,
-    watched_folder: String,
-    destination_label: String,
-    destination_drive_id: String,
-    rclone_remote: String,
+    designer_name: String, project_name: String, watched_folder: String,
+    destination_label: String, destination_drive_id: String, rclone_remote: String,
 ) -> Result<(), String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("config.json").map_err(|e| e.to_string())?;
-    store.set("designer_name", serde_json::json!(designer_name));
-    store.set("project_name", serde_json::json!(project_name));
-    store.set("watched_folder", serde_json::json!(watched_folder));
-    store.set("destination_label", serde_json::json!(destination_label));
-    store.set("destination_drive_id", serde_json::json!(destination_drive_id));
-    store.set("rclone_remote", serde_json::json!(rclone_remote));
+    store.set("designer_name",       serde_json::json!(designer_name));
+    store.set("project_name",        serde_json::json!(project_name));
+    store.set("watched_folder",      serde_json::json!(watched_folder));
+    store.set("destination_label",   serde_json::json!(destination_label));
+    store.set("destination_drive_id",serde_json::json!(destination_drive_id));
+    store.set("rclone_remote",       serde_json::json!(rclone_remote));
     store.save().map_err(|e| e.to_string())
 }
 
@@ -216,17 +212,15 @@ async fn save_config(
 async fn get_config(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("config.json").map_err(|e| e.to_string())?;
-    if !store.has("designer_name") {
-        return Ok(None);
-    }
+    if !store.has("designer_name") { return Ok(None); }
     Ok(Some(serde_json::json!({
-        "designer_name":       store.get("designer_name"),
-        "project_name":        store.get("project_name"),
-        "watched_folder":      store.get("watched_folder"),
-        "destination_label":   store.get("destination_label"),
+        "designer_name":        store.get("designer_name"),
+        "project_name":         store.get("project_name"),
+        "watched_folder":       store.get("watched_folder"),
+        "destination_label":    store.get("destination_label"),
         "destination_drive_id": store.get("destination_drive_id"),
-        "rclone_remote":       store.get("rclone_remote"),
-        "last_sync":           store.get("last_sync"),
+        "rclone_remote":        store.get("rclone_remote"),
+        "last_sync":            store.get("last_sync"),
     })))
 }
 
@@ -236,17 +230,15 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
 
     let get = |key: &str| -> Result<String, String> {
-        store
-            .get(key)
-            .and_then(|v| v.as_str().map(String::from))
+        store.get(key).and_then(|v| v.as_str().map(String::from))
             .ok_or_else(|| format!("Missing config: {key}"))
     };
 
-    let watched_folder  = get("watched_folder")?;
-    let designer_name   = get("designer_name")?;
-    let project_name    = get("project_name")?;
-    let drive_id        = get("destination_drive_id")?;
-    let rclone_remote   = get("rclone_remote")?;
+    let watched_folder = get("watched_folder")?;
+    let designer_name  = get("designer_name")?;
+    let project_name   = get("project_name")?;
+    let drive_id       = get("destination_drive_id")?;
+    let rclone_remote  = get("rclone_remote")?;
 
     let app_clone = app.clone();
 
@@ -254,19 +246,13 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
         use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
 
         let (tx, rx) = std::sync::mpsc::channel();
-        let mut debouncer = match new_debouncer(Duration::from_secs(5), move |res| {
-            let _ = tx.send(res);
-        }) {
+        let mut debouncer = match new_debouncer(Duration::from_secs(5), move |res| { let _ = tx.send(res); }) {
             Ok(d) => d,
             Err(e) => { eprintln!("Watcher init failed: {e}"); return; }
         };
 
-        if let Err(e) = debouncer
-            .watcher()
-            .watch(std::path::Path::new(&watched_folder), RecursiveMode::Recursive)
-        {
-            eprintln!("Watch failed: {e}");
-            return;
+        if let Err(e) = debouncer.watcher().watch(std::path::Path::new(&watched_folder), RecursiveMode::Recursive) {
+            eprintln!("Watch failed: {e}"); return;
         }
 
         for result in rx {
@@ -289,10 +275,7 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
                             store.set("last_sync", serde_json::json!(&now));
                             let _ = store.save();
                         }
-                        let _ = app.emit("sync-status", serde_json::json!({
-                            "status": "idle",
-                            "last_sync": now,
-                        }));
+                        let _ = app.emit("sync-status", serde_json::json!({ "status": "idle", "last_sync": now }));
                     }
                     Err(e) => {
                         eprintln!("Sync error: {e}");
@@ -306,20 +289,12 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-async fn sync_files(
-    app: &AppHandle,
-    local_folder: &str,
-    designer_name: &str,
-    project_name: &str,
-    drive_id: &str,
-    rclone_remote: &str,
-) -> Result<(), String> {
+async fn sync_files(app: &AppHandle, local_folder: &str, designer_name: &str, project_name: &str, drive_id: &str, rclone_remote: &str) -> Result<(), String> {
     let sa = sa_path(app)?;
     let config = write_rclone_config(&sa, rclone_remote, drive_id)?;
     run_rclone(app, vec![
         "--config".to_string(), config.to_string_lossy().to_string(),
-        "copy".to_string(),
-        local_folder.to_string(),
+        "copy".to_string(), local_folder.to_string(),
         format!("{rclone_remote}:{designer_name}/{project_name}"),
         "--use-json-log".to_string(), "--log-level".to_string(), "INFO".to_string(),
     ]).await?;
@@ -328,25 +303,10 @@ async fn sync_files(
 
 #[tauri::command]
 async fn open_watched_folder(app: AppHandle) -> Result<(), String> {
-    use tauri_plugin_store::StoreExt;
-    use tauri_plugin_opener::OpenerExt;
-    let store = app.store("config.json").map_err(|e| e.to_string())?;
-    let folder = store
-        .get("watched_folder")
-        .and_then(|v| v.as_str().map(String::from))
-        .ok_or("No folder configured")?;
-    app.opener().open_path(folder, None::<&str>).map_err(|e| e.to_string())
+    do_open_folder(&app)
 }
 
 #[tauri::command]
 async fn open_drive(app: AppHandle) -> Result<(), String> {
-    use tauri_plugin_store::StoreExt;
-    use tauri_plugin_opener::OpenerExt;
-    let store = app.store("config.json").map_err(|e| e.to_string())?;
-    let drive_id = store
-        .get("destination_drive_id")
-        .and_then(|v| v.as_str().map(String::from))
-        .ok_or("No drive configured")?;
-    let url = format!("https://drive.google.com/drive/folders/{drive_id}");
-    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    do_open_drive_url(&app)
 }
