@@ -40,7 +40,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources/wild-sync-service-account.json"],
+    "resources": ["resources/wild-sync-service-account.json", "resources/destinations.json"],
     "externalBin": ["binaries/rclone"]
   }
 }
