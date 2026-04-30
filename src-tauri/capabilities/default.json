@@ -1,0 +1,17 @@
+{
+  "identifier": "default",
+  "description": "Wild Sync default capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "fs:default",
+    "opener:default",
+    "shell:allow-open",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-has",
+    "store:allow-load"
+  ]
+}

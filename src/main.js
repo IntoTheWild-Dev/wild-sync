@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-shell";
-import { open as openDialog } from "@tauri-apps/plugin-fs";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 // ── Screen management ─────────────────────────────────────────────────
 
