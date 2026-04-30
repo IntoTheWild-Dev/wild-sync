@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wild Sync</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Onboarding (first launch only) ───────────────────── -->
+  <div id="screen-onboarding" class="screen">
+
+    <div class="wordmark">
+      <span class="wm-wild">wild</span>
+      <span class="wm-sep">|</span>
+      <span class="wm-sync">sync</span>
+    </div>
+    <p class="brand-sub">Auto archive</p>
+
+    <div class="form">
+
+      <div class="field">
+        <label for="destination-select">Sync to</label>
+        <select id="destination-select">
+          <option value="">Loading destinations…</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="name-select">Your Name</label>
+        <select id="name-select" disabled>
+          <option value="">Select a destination first</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="project-select">Project</label>
+        <select id="project-select" disabled>
+          <option value="">Select your name first</option>
+        </select>
+        <input id="project-new" type="text" placeholder="Type new project name…" class="hidden" />
+      </div>
+
+      <div class="field">
+        <label for="folder-path">Watch this folder</label>
+        <div class="folder-picker">
+          <input id="folder-path" type="text" placeholder="No folder chosen" readonly />
+          <button id="btn-browse" class="btn-ghost" type="button">Browse</button>
+        </div>
+      </div>
+
+      <button id="btn-start" class="btn-primary" disabled>Start Syncing</button>
+
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <span class="status-msg" id="onboard-status">Connecting to Wild Sync Archives…</span>
+    </div>
+
+  </div>
+
+  <!-- ── Error (fetch failure) ────────────────────────────── -->
+  <div id="screen-error" class="screen hidden">
+    <div class="error-icon">⚠️</div>
+    <h2>Could not reach Wild Sync Archives</h2>
+    <p>Check your internet connection and try again.</p>
+    <button id="btn-retry" class="btn-primary">Retry</button>
+  </div>
+
+  <!-- ── Tray popover (after setup) ───────────────────────── -->
+  <div id="screen-popover" class="screen hidden">
+
+    <div class="popover-header">
+      <div class="wordmark">
+        <span class="wm-wild">wild</span>
+        <span class="wm-sep">|</span>
+        <span class="wm-sync">sync</span>
+      </div>
+      <span id="status-badge" class="status-badge status-idle">● Synced</span>
+    </div>
+
+    <div class="popover-divider"></div>
+
+    <div class="popover-info">
+      <div class="info-row">
+        <span class="info-label">Syncing as</span>
+        <span id="info-name" class="info-value">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Project</span>
+        <span id="info-project" class="info-value">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Destination</span>
+        <span id="info-destination" class="info-value">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Folder</span>
+        <span id="info-folder" class="info-value">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Last sync</span>
+        <span id="info-last-sync" class="info-value">—</span>
+      </div>
+    </div>
+
+    <div class="popover-divider"></div>
+
+    <div class="popover-actions">
+      <button id="btn-open-folder" class="btn-ghost">Open Folder</button>
+      <button id="btn-open-drive"  class="btn-ghost">Open on Drive</button>
+    </div>
+
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

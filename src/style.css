@@ -1,0 +1,242 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens (Wild Stack CI) ─────────────────────────── */
+:root {
+  --bg:          #020618;
+  --bg-footer:   #050b0f;
+  --bg-card:     #0f172b;
+  --bg-input:    #1d293d;
+  --bg-sidebar:  #07101a;
+
+  --slate:       #49657a;
+  --coral:       #df6f6d;
+  --amber:       #fabf71;
+  --heading:     #cad5e2;
+  --body:        #c0ced8;
+  --muted:       #8a9fae;
+
+  --border:      rgba(73,101,122,0.25);
+  --border-md:   rgba(73,101,122,0.35);
+
+  --grad:        linear-gradient(90deg, #49657a 0%, #df6f6d 100%);
+  --grad-135:    linear-gradient(135deg, #49657a 0%, #df6f6d 100%);
+
+  --r-sm:  8px;
+  --r-md:  10px;
+  --r-lg:  14px;
+  --r-full: 9999px;
+
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--body);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── Screens ─────────────────────────────────────────────────── */
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 28px 24px 24px;
+}
+.screen.hidden { display: none; }
+.hidden { display: none; }
+
+/* ── Wild Sync wordmark ──────────────────────────────────────── */
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+.wm-wild  { font-size: 15px; font-weight: 800; color: var(--heading); letter-spacing: -0.3px; }
+.wm-sep   { font-size: 13px; font-weight: 300; color: var(--coral);   opacity: 0.9; margin: 0 2px; }
+.wm-sync  { font-size: 15px; font-weight: 600; color: var(--coral);   letter-spacing: -0.2px; }
+
+.brand-sub {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin-bottom: 24px;
+}
+
+/* ── Form ────────────────────────────────────────────────────── */
+.form { display: flex; flex-direction: column; gap: 14px; flex: 1; }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.field label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+select, input[type="text"] {
+  width: 100%;
+  height: 36px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-md);
+  border-radius: var(--r-sm);
+  color: var(--heading);
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2349657a'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
+select:focus, input:focus { border-color: var(--slate); box-shadow: 0 0 0 3px rgba(73,101,122,0.15); }
+select:disabled { opacity: 0.4; cursor: not-allowed; }
+select option { background: var(--bg-card); }
+
+.folder-picker { display: flex; gap: 6px; }
+.folder-picker input { flex: 1; cursor: default; }
+.folder-picker input { color: var(--muted); }
+.folder-picker input.has-value { color: var(--heading); }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+button {
+  font-family: inherit;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.15s, transform 0.15s var(--ease);
+  white-space: nowrap;
+  -webkit-appearance: none;
+}
+button:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+button:active { transform: translateY(0); opacity: 0.8; }
+button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.btn-primary {
+  width: 100%;
+  height: 38px;
+  background: #df6f6d;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-top: 4px;
+}
+
+.btn-ghost {
+  height: 36px;
+  padding: 0 12px;
+  background: rgba(73,101,122,0.12);
+  color: var(--heading);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+/* ── Error screen ────────────────────────────────────────────── */
+#screen-error {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+}
+.error-icon { font-size: 32px; margin-bottom: 4px; }
+#screen-error h2 { font-size: 15px; font-weight: 600; color: var(--heading); }
+#screen-error p  { font-size: 12px; color: var(--muted); line-height: 1.6; max-width: 240px; }
+#screen-error .btn-primary { width: 130px; margin-top: 8px; }
+
+/* ── Tray popover ────────────────────────────────────────────── */
+#screen-popover {
+  padding: 16px;
+  height: auto;
+  min-height: unset;
+}
+
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+}
+.status-idle  { background: rgba(74,222,128,0.1);   color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+.status-sync  { background: rgba(250,191,113,0.12); color: var(--amber); border: 1px solid rgba(250,191,113,0.25); }
+.status-error { background: rgba(223,111,109,0.1);  color: var(--coral); border: 1px solid rgba(223,111,109,0.2); }
+
+.popover-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+
+.popover-info { display: flex; flex-direction: column; gap: 7px; }
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.info-label { color: var(--muted); }
+.info-value {
+  font-weight: 500;
+  color: var(--heading);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.popover-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.popover-actions .btn-ghost { flex: 1; font-size: 11px; }
+
+/* ── Status bar (bottom) ─────────────────────────────────────── */
+.status-bar {
+  flex-shrink: 0;
+  background: var(--bg-footer);
+  border-top: 1px solid var(--border);
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -24px -24px;
+}
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--slate);
+  flex-shrink: 0;
+}
+.status-msg {
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

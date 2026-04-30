@@ -1,0 +1,46 @@
+{
+  "productName": "Wild Sync",
+  "version": "0.1.0",
+  "identifier": "com.intothewild.wildsync",
+  "build": {
+    "frontendDist": "../src",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "icons/tray-idle.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Wild Sync",
+        "width": 380,
+        "height": 440,
+        "resizable": false,
+        "center": true,
+        "visible": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": ["resources/wild-sync-service-account.json"],
+    "externalBin": ["binaries/rclone"]
+  }
+}

@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Tauri build output
+src-tauri/target/
+
+# Sensitive credentials — NEVER commit these
+src-tauri/resources/wild-sync-service-account.json
+
+# rclone binaries — large files, add manually before building
+src-tauri/binaries/rclone-*
+
+# rclone config generated at runtime
+~/.config/rclone/
+
+# Wild Sync runtime files
+~/.wild-sync/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

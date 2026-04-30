@@ -1,0 +1,9 @@
+{
+  "destinations": [
+    {
+      "label": "Wild Sync – Design Team",
+      "drive_id": "0AIFdPahicg_mUk9PVA",
+      "rclone_remote": "wildteam"
+    }
+  ]
+}

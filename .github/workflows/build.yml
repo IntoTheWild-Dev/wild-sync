@@ -1,0 +1,99 @@
+name: Build Wild Sync
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            name: mac-arm
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            name: mac-intel
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: windows
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      # Write the service account JSON from GitHub secret before building.
+      # Go to GitHub repo → Settings → Secrets → Actions and add:
+      # Name: SERVICE_ACCOUNT_JSON
+      # Value: paste the full contents of wild-sync-service-account.json
+      - name: Write service account credentials
+        shell: bash
+        run: |
+          echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > src-tauri/resources/wild-sync-service-account.json
+
+      # Download and place rclone binaries.
+      # Update these URLs when a new rclone version is released.
+      - name: Download rclone (Mac ARM)
+        if: matrix.name == 'mac-arm'
+        run: |
+          curl -L https://downloads.rclone.org/rclone-current-osx-arm64.zip -o rclone.zip
+          unzip rclone.zip
+          mv rclone-*/rclone src-tauri/binaries/rclone-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/rclone-aarch64-apple-darwin
+
+      - name: Download rclone (Mac Intel)
+        if: matrix.name == 'mac-intel'
+        run: |
+          curl -L https://downloads.rclone.org/rclone-current-osx-amd64.zip -o rclone.zip
+          unzip rclone.zip
+          mv rclone-*/rclone src-tauri/binaries/rclone-x86_64-apple-darwin
+          chmod +x src-tauri/binaries/rclone-x86_64-apple-darwin
+
+      - name: Download rclone (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile "rclone.zip"
+          Expand-Archive -Path "rclone.zip" -DestinationPath "rclone-tmp"
+          Move-Item "rclone-tmp\rclone-*\rclone.exe" "src-tauri\binaries\rclone-x86_64-pc-windows-msvc.exe"
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Wild Sync ${{ github.ref_name }}
+          releaseBody: |
+            ## Wild Sync ${{ github.ref_name }}
+
+            ### Install
+            - **Mac (Apple Silicon):** Download `Wild Sync_arm64.dmg`
+            - **Mac (Intel):** Download `Wild Sync_x64.dmg`
+            - **Windows:** Download `Wild Sync_setup.exe`
+
+            ### First time on Mac
+            Right-click the app → Open → Open Again to bypass Gatekeeper.
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
