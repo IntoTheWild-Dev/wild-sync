@@ -15,9 +15,9 @@ Built for Into The Wild Design Agency.
 
 ```
 ~/Wild Sync Watch/
-├── FNB Rebrand/      →  Drive: Julia/FNB Rebrand/
-├── Vodacom 2026/     →  Drive: Julia/Vodacom 2026/
-└── Nike Campaign/    →  Drive: Julia/Nike Campaign/
+├── Project 1/        →  Drive: Your Name/Project 1/
+├── Project 2/        →  Drive: Your Name/Project 2/
+└── Project 3/        →  Drive: Your Name/Project 3/
 ```
 
 No project setup needed — just create a subfolder and drop files in.
