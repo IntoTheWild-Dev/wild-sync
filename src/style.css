@@ -167,6 +167,82 @@ button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 #screen-error p  { font-size: 12px; color: var(--muted); line-height: 1.6; max-width: 240px; }
 #screen-error .btn-primary { width: 130px; margin-top: 8px; }
 
+/* ── First launch screen ─────────────────────────────────────── */
+#screen-first-launch {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.first-launch-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.first-launch-text {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 280px;
+}
+
+.terminal-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-md);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.terminal-block code {
+  flex: 1;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--amber);
+  text-align: left;
+  word-break: break-all;
+}
+
+.btn-copy {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  background: rgba(73,101,122,0.15);
+  color: var(--heading);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-copy:hover { background: rgba(73,101,122,0.25); }
+.btn-copy.copied { background: rgba(74,222,128,0.15); color: #4ade80; border-color: rgba(74,222,128,0.3); }
+
+.steps {
+  text-align: left;
+  font-size: 11px;
+  color: var(--body);
+  line-height: 1.8;
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.steps li { margin-bottom: 2px; }
+.steps strong { color: var(--heading); }
+
+#screen-first-launch .btn-primary {
+  width: 200px;
+  margin-top: 8px;
+}
+
 /* ── Tray popover ────────────────────────────────────────────── */
 #screen-popover {
   padding: 16px;

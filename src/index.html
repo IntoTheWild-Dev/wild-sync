@@ -8,8 +8,40 @@
 </head>
 <body>
 
+  <!-- ── First launch — Mac setup instructions ─────────────── -->
+  <div id="screen-first-launch" class="screen hidden">
+
+    <div class="wordmark">
+      <span class="wm-wild">wild</span>
+      <span class="wm-sep">|</span>
+      <span class="wm-sync">sync</span>
+    </div>
+    <p class="brand-sub">First time setup</p>
+
+    <div class="first-launch-body">
+      <p class="first-launch-text">
+        Mac requires one quick Terminal command before Wild Sync can run.
+        This only happens once.
+      </p>
+
+      <div class="terminal-block">
+        <code>xattr -cr "/Applications/Wild Sync.app"</code>
+        <button id="btn-copy" class="btn-copy" type="button">Copy</button>
+      </div>
+
+      <ol class="steps">
+        <li>Open <strong>Terminal</strong> (Cmd + Space, type "Terminal")</li>
+        <li>Paste the command above and press <strong>Enter</strong></li>
+        <li>Come back and click <strong>Continue</strong></li>
+      </ol>
+    </div>
+
+    <button id="btn-continue-setup" class="btn-primary">I've done this — Continue</button>
+
+  </div>
+
   <!-- ── Onboarding (first launch only) ───────────────────── -->
-  <div id="screen-onboarding" class="screen">
+  <div id="screen-onboarding" class="screen hidden">
 
     <div class="wordmark">
       <span class="wm-wild">wild</span>

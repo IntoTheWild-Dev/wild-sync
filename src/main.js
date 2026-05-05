@@ -4,6 +4,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 // ── Screen management ─────────────────────────────────────────────────
 
 const screens = {
+  "first-launch": document.getElementById("screen-first-launch"),
   onboarding: document.getElementById("screen-onboarding"),
   error: document.getElementById("screen-error"),
   popover: document.getElementById("screen-popover"),
@@ -18,6 +19,7 @@ function showScreen(name) {
 
 let destinations = [];
 let selectedDestination = null;
+let isFirstLaunch = true;
 
 // ── Init ──────────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ async function init() {
   try {
     const config = await invoke("get_config");
     if (config) {
+      isFirstLaunch = false;
       populatePopover(config);
       showScreen("popover");
       await invoke("start_watching");
@@ -35,9 +38,8 @@ async function init() {
     console.error("Config read failed:", e);
   }
 
-  // First launch — show onboarding
-  showScreen("onboarding");
-  await loadDestinations();
+  // First launch — show Mac setup instructions
+  showScreen("first-launch");
 }
 
 // ── Destinations ──────────────────────────────────────────────────────
@@ -182,6 +184,26 @@ document.getElementById("btn-open-folder").addEventListener("click", () => {
 
 document.getElementById("btn-open-drive").addEventListener("click", () => {
   invoke("open_drive");
+});
+
+// ─ First launch screen ───────────────────────────────────────────────
+
+document.getElementById("btn-copy").addEventListener("click", () => {
+  const cmd = 'xattr -cr "/Applications/Wild Sync.app"';
+  navigator.clipboard.writeText(cmd).then(() => {
+    const btn = document.getElementById("btn-copy");
+    btn.textContent = "Copied";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "Copy";
+      btn.classList.remove("copied");
+    }, 2000);
+  });
+});
+
+document.getElementById("btn-continue-setup").addEventListener("click", async () => {
+  showScreen("onboarding");
+  await loadDestinations();
 });
 
 // ── Sync status updates from Rust ─────────────────────────────────────
