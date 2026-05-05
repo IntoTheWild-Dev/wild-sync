@@ -278,10 +278,8 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
             // Extract the immediate subfolder name for each changed path.
             let mut projects_touched = std::collections::HashSet::new();
             for event in &events {
-                for path in &event.path {
-                    if let Some(project) = extract_project_name(&watch_root, path) {
-                        projects_touched.insert(project);
-                    }
+                if let Some(project) = extract_project_name(&watch_root, &event.path) {
+                    projects_touched.insert(project);
                 }
             }
 
