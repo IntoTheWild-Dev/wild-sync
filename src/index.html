@@ -35,15 +35,8 @@
       </div>
 
       <div class="field">
-        <label for="project-select">Project</label>
-        <select id="project-select" disabled>
-          <option value="">Select your name first</option>
-        </select>
-        <input id="project-new" type="text" placeholder="Type new project name…" class="hidden" />
-      </div>
-
-      <div class="field">
-        <label for="folder-path">Watch this folder</label>
+        <label for="folder-path">Watch folder</label>
+        <p class="field-hint">Each subfolder inside becomes a project — it syncs automatically when files change.</p>
         <div class="folder-picker">
           <input id="folder-path" type="text" placeholder="No folder chosen" readonly />
           <button id="btn-browse" class="btn-ghost" type="button">Browse</button>
@@ -89,16 +82,16 @@
         <span id="info-name" class="info-value">—</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Project</span>
-        <span id="info-project" class="info-value">—</span>
-      </div>
-      <div class="info-row">
         <span class="info-label">Destination</span>
         <span id="info-destination" class="info-value">—</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Folder</span>
+        <span class="info-label">Watch folder</span>
         <span id="info-folder" class="info-value">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Last project</span>
+        <span id="info-last-project" class="info-value">—</span>
       </div>
       <div class="info-row">
         <span class="info-label">Last sync</span>

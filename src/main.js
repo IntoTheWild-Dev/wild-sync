@@ -98,65 +98,19 @@ async function loadDesignerNames(destination) {
   updateStartButton();
 }
 
-// ── Project names ─────────────────────────────────────────────────────
-
-async function loadProjectNames(designerName) {
-  const projectSelect = document.getElementById("project-select");
-  const projectNew = document.getElementById("project-new");
-  projectSelect.disabled = true;
-  projectSelect.innerHTML = '<option value="">Loading projects…</option>';
-  projectNew.classList.add("hidden");
-  projectNew.value = "";
-  updateStartButton();
-
-  try {
-    const projects = await invoke("fetch_project_names", {
-      rcloneRemote: selectedDestination.rclone_remote,
-      driveId: selectedDestination.drive_id,
-      designerName,
-    });
-
-    projectSelect.innerHTML = '<option value="">Choose a project…</option>';
-    const newOpt = document.createElement("option");
-    newOpt.value = "__new__";
-    newOpt.textContent = "+ New project…";
-    projectSelect.appendChild(newOpt);
-
-    projects.forEach((name) => {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      projectSelect.appendChild(opt);
-    });
-    projectSelect.disabled = false;
-  } catch (e) {
-    projectSelect.innerHTML = '<option value="">Could not load projects</option>';
-  }
-  updateStartButton();
-}
-
-document.getElementById("project-select").addEventListener("change", (e) => {
-  const projectNew = document.getElementById("project-new");
-  if (e.target.value === "__new__") {
-    projectNew.classList.remove("hidden");
-    projectNew.focus();
-  } else {
-    projectNew.classList.add("hidden");
-    projectNew.value = "";
-  }
+document.getElementById("name-select").addEventListener("change", () => {
   updateStartButton();
 });
-
-document.getElementById("project-new").addEventListener("input", updateStartButton);
 
 // ── Folder picker ─────────────────────────────────────────────────────
 
 document.getElementById("btn-browse").addEventListener("click", async () => {
   try {
-    // Opens native folder picker dialog
     const selected = await openDialog({ directory: true, multiple: false });
     if (selected) {
-      document.getElementById("folder-path").value = selected;
+      const input = document.getElementById("folder-path");
+      input.value = selected;
+      input.classList.add("has-value");
       updateStartButton();
     }
   } catch (e) {
@@ -167,52 +121,31 @@ document.getElementById("btn-browse").addEventListener("click", async () => {
 // ── Start button ──────────────────────────────────────────────────────
 
 function updateStartButton() {
-  const dest = document.getElementById("destination-select").value;
-  const name = document.getElementById("name-select").value;
-  const projectVal = document.getElementById("project-select").value;
-  const projectNew = document.getElementById("project-new");
-  const project = projectVal === "__new__" ? projectNew.value.trim() : projectVal;
+  const dest   = document.getElementById("destination-select").value;
+  const name   = document.getElementById("name-select").value;
   const folder = document.getElementById("folder-path").value;
-  document.getElementById("btn-start").disabled = !(dest && name && project && folder);
+  document.getElementById("btn-start").disabled = !(dest && name && folder);
 }
 
-document.getElementById("name-select").addEventListener("change", async (e) => {
-  const name = e.target.value;
-  const projectSelect = document.getElementById("project-select");
-  projectSelect.innerHTML = '<option value="">Select your name first</option>';
-  projectSelect.disabled = true;
-  document.getElementById("project-new").classList.add("hidden");
-  document.getElementById("project-new").value = "";
-  if (!name) { updateStartButton(); return; }
-  await loadProjectNames(name);
-});
-
 document.getElementById("btn-start").addEventListener("click", async () => {
-  const nameSelect = document.getElementById("name-select");
-  const folderPath = document.getElementById("folder-path").value;
+  const nameSelect  = document.getElementById("name-select");
+  const folderPath  = document.getElementById("folder-path").value;
 
   try {
-    const projectSelect = document.getElementById("project-select");
-    const projectNewInput = document.getElementById("project-new");
-    const projectName = projectSelect.value === "__new__"
-      ? projectNewInput.value.trim()
-      : projectSelect.value;
-
     await invoke("save_config", {
-      designerName: nameSelect.value,
-      projectName,
-      watchedFolder: folderPath,
-      destinationLabel: selectedDestination.label,
+      designerName:       nameSelect.value,
+      watchedFolder:      folderPath,
+      destinationLabel:   selectedDestination.label,
       destinationDriveId: selectedDestination.drive_id,
-      rcloneRemote: selectedDestination.rclone_remote,
+      rcloneRemote:       selectedDestination.rclone_remote,
     });
 
     populatePopover({
-      designer_name: nameSelect.value,
-      project_name: projectName,
+      designer_name:     nameSelect.value,
       destination_label: selectedDestination.label,
-      watched_folder: folderPath,
-      last_sync: null,
+      watched_folder:    folderPath,
+      last_sync:         null,
+      last_synced_project: null,
     });
 
     showScreen("popover");
@@ -232,12 +165,13 @@ document.getElementById("btn-retry").addEventListener("click", async () => {
 // ── Popover ───────────────────────────────────────────────────────────
 
 function populatePopover(config) {
-  document.getElementById("info-name").textContent = config.designer_name || "—";
-  document.getElementById("info-project").textContent = config.project_name || "—";
+  document.getElementById("info-name").textContent        = config.designer_name     || "—";
   document.getElementById("info-destination").textContent = config.destination_label || "—";
-  document.getElementById("info-folder").textContent =
-    config.watched_folder?.replace(/.*[\\/]/, "~/") || "—";
-  document.getElementById("info-last-sync").textContent = config.last_sync
+  document.getElementById("info-folder").textContent      =
+    config.watched_folder?.replace(/^.*[\\/]([^\\/]+)$/, "~/$1") || "—";
+  document.getElementById("info-last-project").textContent =
+    config.last_synced_project || "Waiting for changes…";
+  document.getElementById("info-last-sync").textContent   = config.last_sync
     ? formatRelativeTime(config.last_sync)
     : "Never";
 }
@@ -256,21 +190,23 @@ import { listen } from "@tauri-apps/api/event";
 
 listen("sync-status", (event) => {
   const badge = document.getElementById("status-badge");
-  const { status, last_sync } = event.payload;
+  const { status, last_sync, project } = event.payload;
 
   badge.className = "";
   if (status === "syncing") {
     badge.classList.add("status-sync");
-    badge.textContent = "● Syncing…";
+    badge.textContent = project ? `● Syncing ${project}…` : "● Syncing…";
   } else if (status === "error") {
     badge.classList.add("status-error");
-    badge.textContent = "● Error";
+    badge.textContent = project ? `● Error (${project})` : "● Error";
   } else {
     badge.classList.add("status-idle");
     badge.textContent = "● Synced";
+    if (project) {
+      document.getElementById("info-last-project").textContent = project;
+    }
     if (last_sync) {
-      document.getElementById("info-last-sync").textContent =
-        formatRelativeTime(last_sync);
+      document.getElementById("info-last-sync").textContent = formatRelativeTime(last_sync);
     }
   }
 });
