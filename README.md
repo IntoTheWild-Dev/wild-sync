@@ -38,15 +38,24 @@ Go to [Releases](https://github.com/IntoTheWild-Dev/wild-sync/releases/latest) a
 
 ## First time on Mac
 
-Mac blocks apps not from the App Store. Do this once:
+Mac blocks apps not from the App Store. Follow these steps once:
 
-1. Open the `.dmg` and drag Wild Sync to Applications
-2. Try to open it — Mac will block it with a popup, click **OK**
-3. Go to **System Settings → Privacy & Security**
-4. Scroll down — click **Open Anyway** next to Wild Sync
-5. Click **Open** on the final confirmation
+1. Open the `.dmg` and drag Wild Sync to your Applications folder
+2. Open **Terminal** (search for it in Spotlight with `Cmd + Space`)
+3. Paste this command and press Enter:
+   ```bash
+   xattr -cr "/Applications/Wild Sync.app"
+   ```
+4. Now open Wild Sync from your Applications folder — it will launch normally
 
-That's it — opens normally every time after.
+> This command removes the quarantine flag Apple places on downloaded apps.
+> You only need to do this once. Wild Sync opens normally every time after that.
+
+**If the app still doesn't open**, run this in Terminal to see what's happening:
+```bash
+/Applications/Wild\ Sync.app/Contents/MacOS/wild-sync
+```
+Any error will print directly — send it to your admin to get it sorted.
 
 ---
 
