@@ -92,7 +92,7 @@ jobs:
 
           # Mount it
           MOUNT_INFO=$(hdiutil attach "$RW_DMG" -nobrowse)
-          VOLUME=$(echo "$MOUNT_INFO" | grep "/Volumes/" | awk '{print $3}')
+          VOLUME=$(echo "$MOUNT_INFO" | grep "/Volumes/" | awk -F'\t' '{print $3}')
 
           # Copy ReadMe.txt in
           cp /tmp/ReadMe.txt "$VOLUME/ReadMe.txt"
