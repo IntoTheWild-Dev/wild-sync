@@ -106,7 +106,7 @@ fn sa_path(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .resource_dir()
         .map_err(|e| e.to_string())
-        .map(|p| p.join("wild-sync-service-account.json"))
+        .map(|p| p.join("resources").join("wild-sync-service-account.json"))
 }
 
 fn write_rclone_config(sa: &std::path::Path, remote_name: &str, drive_id: &str) -> Result<PathBuf, String> {
@@ -166,7 +166,7 @@ fn parse_lsjson_names(json: &str) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 async fn fetch_destinations(app: AppHandle) -> Result<serde_json::Value, String> {
-    let path = app.path().resource_dir().map_err(|e| e.to_string())?.join("destinations.json");
+    let path = app.path().resource_dir().map_err(|e| e.to_string())?.join("resources").join("destinations.json");
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read destinations.json: {e}"))?;
     serde_json::from_str(&content).map_err(|e| format!("Failed to parse destinations.json: {e}"))
