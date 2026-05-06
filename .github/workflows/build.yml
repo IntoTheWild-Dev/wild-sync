@@ -73,63 +73,75 @@ jobs:
           Move-Item "rclone-tmp\rclone-*\rclone.exe" "src-tauri\binaries\rclone-x86_64-pc-windows-msvc.exe"
 
       - name: Build Tauri app
-        run: npm run tauri build -- --target ${{ matrix.target }}
+        uses: tauri-apps/tauri-action@v0
         env:
-          CI: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Wild Sync {0}', github.ref_name) || '' }}
+          releaseBody: |
+            ## Wild Sync ${{ github.ref_name }}
 
-      - name: Add ReadMe to DMG (Mac)
-        if: startsWith(matrix.platform, 'macos')
+            ---
+
+            ### Mac — Apple Silicon (M1 / M2 / M3 / M4)
+            Download **\`Wild.Sync_${{ github.ref_name }}_aarch64.dmg\`**
+
+            ### Mac — Intel
+            Download **\`Wild.Sync_${{ github.ref_name }}_x64.dmg\`**
+
+            ### Windows
+            Download **\`Wild.Sync_${{ github.ref_name }}_x64-setup.exe\`**
+
+            ---
+
+            ### Mac users — read this before opening the app
+
+            Mac blocks apps not from the App Store. Do this once:
+
+            1. Download the `.dmg` and drag Wild Sync to Applications
+            2. Open **Terminal** (Cmd + Space, type "Terminal", press Enter)
+            3. Paste this command and press Enter:
+
+               ```
+               xattr -cr "/Applications/Wild Sync.app"
+               ```
+
+            4. Open Wild Sync — it will launch normally every time after this
+
+            Also download **\`ReadMe.txt\`** from the assets below for reference.
+          releaseDraft: ${{ startsWith(github.ref, 'refs/tags/') }}
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+  upload-readme:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Create and upload ReadMe.txt
         run: |
-          DMG=$(find src-tauri/target -name "*.dmg" | head -1)
-          echo "Found DMG: $DMG"
+          cat > ReadMe.txt << 'EOF'
+          Mac Install Instructions
+          ========================
 
-          # Create ReadMe.txt
-          printf 'Mac Install Instructions\n=========================\n\nIf macOS says "Wild Sync.app is damaged", run this in Terminal:\n\n    xattr -cr "/Applications/Wild Sync.app"\n\nThen open Wild Sync normally.\n\nYou only need to do this once.\n\n---\n\nTo open Terminal:\n1. Press Cmd + Space\n2. Type "Terminal"\n3. Press Enter\n4. Paste the command above and press Enter\n' > /tmp/ReadMe.txt
+          If macOS says "Wild Sync.app is damaged", run this in Terminal:
 
-          # Convert DMG to read-write
-          RW_DMG="/tmp/wild-sync-rw.dmg"
-          hdiutil convert "$DMG" -format UDRW -o "$RW_DMG"
+              xattr -cr "/Applications/Wild Sync.app"
 
-          # Mount it
-          MOUNT_INFO=$(hdiutil attach "$RW_DMG" -nobrowse)
-          VOLUME=$(echo "$MOUNT_INFO" | grep "/Volumes/" | awk -F'\t' '{print $3}')
+          Then open Wild Sync normally.
+          You only need to do this once.
 
-          # Copy ReadMe.txt in
-          cp /tmp/ReadMe.txt "$VOLUME/ReadMe.txt"
+          ---
 
-          # Detach
-          hdiutil detach "$VOLUME" -force
-
-          # Convert back to compressed and replace
-          hdiutil convert "$RW_DMG" -format UDZO -o "${DMG}.new"
-          mv "${DMG}.new" "$DMG"
-          rm -f "$RW_DMG"
-          echo "ReadMe.txt added to DMG"
-
-      - name: Upload artifacts to release
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          TAG="${{ github.ref_name }}"
-          REPO="${{ github.repository }}"
-
-          # Create draft release if it doesn't exist
-          gh release view "$TAG" --repo "$REPO" 2>/dev/null || \
-            gh release create "$TAG" --repo "$REPO" --draft --title "Wild Sync $TAG" --notes "Build in progress..."
-
-          # Upload artifacts
-          if [[ "${{ matrix.platform }}" == macos* ]]; then
-            DMG=$(find src-tauri/target -name "*.dmg" | head -1)
-            [ -f "$DMG" ] && gh release upload "$TAG" "$DMG" --repo "$REPO" --clobber
-            TARGZ=$(find src-tauri/target -name "*.app.tar.gz" | head -1)
-            [ -f "$TARGZ" ] && gh release upload "$TAG" "$TARGZ" --repo "$REPO" --clobber
-          else
-            EXE=$(find src-tauri/target -name "*.exe" | head -1)
-            [ -f "$EXE" ] && gh release upload "$TAG" "$EXE" --repo "$REPO" --clobber
-            MSI=$(find src-tauri/target -name "*.msi" | head -1)
-            [ -f "$MSI" ] && gh release upload "$TAG" "$MSI" --repo "$REPO" --clobber
-            TARGZ=$(find src-tauri/target -name "*.app.tar.gz" | head -1)
-            [ -f "$TARGZ" ] && gh release upload "$TAG" "$TARGZ" --repo "$REPO" --clobber
-          fi
+          To open Terminal:
+          1. Press Cmd + Space
+          2. Type "Terminal"
+          3. Press Enter
+          4. Paste the command above and press Enter
+          EOF
+          gh release upload ${{ github.ref_name }} ReadMe.txt --repo ${{ github.repository }} --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
