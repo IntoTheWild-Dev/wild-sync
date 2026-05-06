@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     permissions:
-      contents: write   # needed to create GitHub releases on tag push
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -80,59 +80,29 @@ jobs:
       - name: Add ReadMe to DMG (Mac)
         if: startsWith(matrix.platform, 'macos')
         run: |
-          # Find the built DMG
           DMG=$(find src-tauri/target -name "*.dmg" | head -1)
           echo "Found DMG: $DMG"
 
-          # Create ReadMe.txt with install instructions
-          cat > /tmp/ReadMe.txt << 'TXT'
-  Mac Install Instructions
-  =========================
+          # Create ReadMe.txt
+          printf 'Mac Install Instructions\n=========================\n\nIf macOS says "Wild Sync.app is damaged", run this in Terminal:\n\n    xattr -cr "/Applications/Wild Sync.app"\n\nThen open Wild Sync normally.\n\nYou only need to do this once.\n\n---\n\nTo open Terminal:\n1. Press Cmd + Space\n2. Type "Terminal"\n3. Press Enter\n4. Paste the command above and press Enter\n' > /tmp/ReadMe.txt
 
-  If macOS says "Wild Sync.app is damaged", run this in Terminal:
-
-      xattr -cr "/Applications/Wild Sync.app"
-
-  Then open Wild Sync normally.
-
-  You only need to do this once.
-
-  ---
-
-  To open Terminal:
-  1. Press Cmd + Space
-  2. Type "Terminal"
-  3. Press Enter
-  4. Paste the command above and press Enter
-  TXT
-
-          # Mount the DMG read-write
-          MOUNT_POINT="/tmp/wild-sync-dmg-mount"
-          mkdir -p "$MOUNT_POINT"
-
-          # Attach with write access
-          DEVICE=$(hdiutil attach "$DMG" -nobrowse -readonly | grep "/Volumes/" | tail -1 | awk '{print $1}')
-          VOLUME=$(hdiutil attach "$DMG" -nobrowse -readonly | grep "/Volumes/" | tail -1 | awk '{print $3}')
-
-          # Actually, let's use a different approach: convert to read-write, mount, add file, convert back
-          hdiutil detach "$VOLUME" -force 2>/dev/null || true
-
+          # Convert DMG to read-write
           RW_DMG="/tmp/wild-sync-rw.dmg"
           hdiutil convert "$DMG" -format UDRW -o "$RW_DMG"
 
+          # Mount it
           MOUNT_INFO=$(hdiutil attach "$RW_DMG" -nobrowse)
           VOLUME=$(echo "$MOUNT_INFO" | grep "/Volumes/" | awk '{print $3}')
 
-          # Copy ReadMe.txt into the DMG volume
+          # Copy ReadMe.txt in
           cp /tmp/ReadMe.txt "$VOLUME/ReadMe.txt"
 
           # Detach
           hdiutil detach "$VOLUME" -force
 
-          # Convert back to compressed DMG and replace original
+          # Convert back to compressed and replace
           hdiutil convert "$RW_DMG" -format UDZO -o "${DMG}.new"
           mv "${DMG}.new" "$DMG"
-
           rm -f "$RW_DMG"
           echo "ReadMe.txt added to DMG"
 
@@ -141,42 +111,25 @@ jobs:
         shell: bash
         run: |
           TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
 
           # Create draft release if it doesn't exist
-          gh release view "$TAG" --repo ${{ github.repository }} 2>/dev/null || \
-            gh release create "$TAG" \
-              --repo ${{ github.repository }} \
-              --draft \
-              --title "Wild Sync $TAG" \
-              --notes "Build in progress..."
+          gh release view "$TAG" --repo "$REPO" 2>/dev/null || \
+            gh release create "$TAG" --repo "$REPO" --draft --title "Wild Sync $TAG" --notes "Build in progress..."
 
-          # Find and upload artifacts
+          # Upload artifacts
           if [[ "${{ matrix.platform }}" == macos* ]]; then
-            # Upload DMG
             DMG=$(find src-tauri/target -name "*.dmg" | head -1)
-            if [ -f "$DMG" ]; then
-              gh release upload "$TAG" "$DMG" --repo ${{ github.repository }} --clobber
-            fi
-            # Upload app.tar.gz if it exists
+            [ -f "$DMG" ] && gh release upload "$TAG" "$DMG" --repo "$REPO" --clobber
             TARGZ=$(find src-tauri/target -name "*.app.tar.gz" | head -1)
-            if [ -f "$TARGZ" ]; then
-              gh release upload "$TAG" "$TARGZ" --repo ${{ github.repository }} --clobber
-            fi
+            [ -f "$TARGZ" ] && gh release upload "$TAG" "$TARGZ" --repo "$REPO" --clobber
           else
-            # Windows: upload exe and msi
             EXE=$(find src-tauri/target -name "*.exe" | head -1)
-            if [ -f "$EXE" ]; then
-              gh release upload "$TAG" "$EXE" --repo ${{ github.repository }} --clobber
-            fi
+            [ -f "$EXE" ] && gh release upload "$TAG" "$EXE" --repo "$REPO" --clobber
             MSI=$(find src-tauri/target -name "*.msi" | head -1)
-            if [ -f "$MSI" ]; then
-              gh release upload "$TAG" "$MSI" --repo ${{ github.repository }} --clobber
-            fi
-            # Upload app.tar.gz if it exists
+            [ -f "$MSI" ] && gh release upload "$TAG" "$MSI" --repo "$REPO" --clobber
             TARGZ=$(find src-tauri/target -name "*.app.tar.gz" | head -1)
-            if [ -f "$TARGZ" ]; then
-              gh release upload "$TAG" "$TARGZ" --repo ${{ github.repository }} --clobber
-            fi
+            [ -f "$TARGZ" ] && gh release upload "$TAG" "$TARGZ" --repo "$REPO" --clobber
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
