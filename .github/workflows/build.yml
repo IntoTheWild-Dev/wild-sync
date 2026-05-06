@@ -43,17 +43,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      # Write the service account JSON from GitHub secret before building.
-      # Go to GitHub repo → Settings → Secrets → Actions and add:
-      # Name: SERVICE_ACCOUNT_JSON
-      # Value: paste the full contents of wild-sync-service-account.json
       - name: Write service account credentials
         shell: bash
         run: |
           echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > src-tauri/resources/wild-sync-service-account.json
 
-      # Download and place rclone binaries.
-      # Update these URLs when a new rclone version is released.
       - name: Download rclone (Mac ARM)
         if: matrix.name == 'mac-arm'
         run: |
@@ -79,44 +73,110 @@ jobs:
           Move-Item "rclone-tmp\rclone-*\rclone.exe" "src-tauri\binaries\rclone-x86_64-pc-windows-msvc.exe"
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+        run: npm run tauri build -- --target ${{ matrix.target }}
+        env:
+          CI: true
+
+      - name: Add ReadMe to DMG (Mac)
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          # Find the built DMG
+          DMG=$(find src-tauri/target -name "*.dmg" | head -1)
+          echo "Found DMG: $DMG"
+
+          # Create ReadMe.txt with install instructions
+          cat > /tmp/ReadMe.txt << 'TXT'
+  Mac Install Instructions
+  =========================
+
+  If macOS says "Wild Sync.app is damaged", run this in Terminal:
+
+      xattr -cr "/Applications/Wild Sync.app"
+
+  Then open Wild Sync normally.
+
+  You only need to do this once.
+
+  ---
+
+  To open Terminal:
+  1. Press Cmd + Space
+  2. Type "Terminal"
+  3. Press Enter
+  4. Paste the command above and press Enter
+  TXT
+
+          # Mount the DMG read-write
+          MOUNT_POINT="/tmp/wild-sync-dmg-mount"
+          mkdir -p "$MOUNT_POINT"
+
+          # Attach with write access
+          DEVICE=$(hdiutil attach "$DMG" -nobrowse -readonly | grep "/Volumes/" | tail -1 | awk '{print $1}')
+          VOLUME=$(hdiutil attach "$DMG" -nobrowse -readonly | grep "/Volumes/" | tail -1 | awk '{print $3}')
+
+          # Actually, let's use a different approach: convert to read-write, mount, add file, convert back
+          hdiutil detach "$VOLUME" -force 2>/dev/null || true
+
+          RW_DMG="/tmp/wild-sync-rw.dmg"
+          hdiutil convert "$DMG" -format UDRW -o "$RW_DMG"
+
+          MOUNT_INFO=$(hdiutil attach "$RW_DMG" -nobrowse)
+          VOLUME=$(echo "$MOUNT_INFO" | grep "/Volumes/" | awk '{print $3}')
+
+          # Copy ReadMe.txt into the DMG volume
+          cp /tmp/ReadMe.txt "$VOLUME/ReadMe.txt"
+
+          # Detach
+          hdiutil detach "$VOLUME" -force
+
+          # Convert back to compressed DMG and replace original
+          hdiutil convert "$RW_DMG" -format UDZO -o "${DMG}.new"
+          mv "${DMG}.new" "$DMG"
+
+          rm -f "$RW_DMG"
+          echo "ReadMe.txt added to DMG"
+
+      - name: Upload artifacts to release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+
+          # Create draft release if it doesn't exist
+          gh release view "$TAG" --repo ${{ github.repository }} 2>/dev/null || \
+            gh release create "$TAG" \
+              --repo ${{ github.repository }} \
+              --draft \
+              --title "Wild Sync $TAG" \
+              --notes "Build in progress..."
+
+          # Find and upload artifacts
+          if [[ "${{ matrix.platform }}" == macos* ]]; then
+            # Upload DMG
+            DMG=$(find src-tauri/target -name "*.dmg" | head -1)
+            if [ -f "$DMG" ]; then
+              gh release upload "$TAG" "$DMG" --repo ${{ github.repository }} --clobber
+            fi
+            # Upload app.tar.gz if it exists
+            TARGZ=$(find src-tauri/target -name "*.app.tar.gz" | head -1)
+            if [ -f "$TARGZ" ]; then
+              gh release upload "$TAG" "$TARGZ" --repo ${{ github.repository }} --clobber
+            fi
+          else
+            # Windows: upload exe and msi
+            EXE=$(find src-tauri/target -name "*.exe" | head -1)
+            if [ -f "$EXE" ]; then
+              gh release upload "$TAG" "$EXE" --repo ${{ github.repository }} --clobber
+            fi
+            MSI=$(find src-tauri/target -name "*.msi" | head -1)
+            if [ -f "$MSI" ]; then
+              gh release upload "$TAG" "$MSI" --repo ${{ github.repository }} --clobber
+            fi
+            # Upload app.tar.gz if it exists
+            TARGZ=$(find src-tauri/target -name "*.app.tar.gz" | head -1)
+            if [ -f "$TARGZ" ]; then
+              gh release upload "$TAG" "$TARGZ" --repo ${{ github.repository }} --clobber
+            fi
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # Only create a GitHub release when triggered by a version tag (v*).
-          # For manual workflow_dispatch runs (e.g. testing CI), these are left
-          # empty so tauri-action just builds without trying to publish anything.
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Wild Sync {0}', github.ref_name) || '' }}
-          releaseBody: |
-            ## Wild Sync ${{ github.ref_name }}
-
-            ---
-
-            ### Mac — Apple Silicon (M1 / M2 / M3 / M4)
-            Download **`Wild.Sync_${{ github.ref_name }}_aarch64.dmg`**
-
-            ### Mac — Intel
-            Download **`Wild.Sync_${{ github.ref_name }}_x64.dmg`**
-
-            ### Windows
-            Download **`Wild.Sync_${{ github.ref_name }}_x64-setup.exe`**
-
-            ---
-
-            ### First time opening on Mac (important)
-
-            Mac will block the app the first time because it wasn't downloaded from the App Store. This is normal — here's how to open it:
-
-            1. Download the `.dmg` and open it
-            2. Drag **Wild Sync** into your Applications folder
-            3. Go to your Applications folder and try to open Wild Sync
-            4. Mac will show a popup saying *"Wild Sync cannot be opened because it is from an unidentified developer"* — click **OK** to dismiss it
-            5. Open **System Settings → Privacy & Security**
-            6. Scroll down — you'll see *"Wild Sync was blocked"* with an **Open Anyway** button — click it
-            7. One more confirmation popup will appear — click **Open**
-
-            Wild Sync will open normally from now on — you only do this once.
-          releaseDraft: ${{ startsWith(github.ref, 'refs/tags/') }}
-          prerelease: false
-          args: --target ${{ matrix.target }}

@@ -1,6 +1,6 @@
 {
   "productName": "Wild Sync",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "identifier": "com.intothewild.wildsync",
   "build": {
     "frontendDist": "../src",
@@ -41,14 +41,6 @@
       "icons/icon.ico"
     ],
     "resources": ["resources/wild-sync-service-account.json", "resources/destinations.json"],
-    "externalBin": ["binaries/rclone"],
-    "macOS": {
-      "dmg": {
-        "background": "resources/dmg-background.png",
-        "windowSize": { "width": 660, "height": 400 },
-        "appPosition":                 { "x": 160, "y": 200 },
-        "applicationFolderPosition":   { "x": 500, "y": 200 }
-      }
-    }
+    "externalBin": ["binaries/rclone"]
   }
 }
