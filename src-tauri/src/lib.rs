@@ -28,6 +28,7 @@ pub fn run() {
             fetch_designer_names,
             save_config,
             get_config,
+            clear_config,
             start_watching,
             open_watched_folder,
             open_drive,
@@ -216,6 +217,14 @@ async fn get_config(app: AppHandle) -> Result<Option<serde_json::Value>, String>
         "last_sync":            store.get("last_sync"),
         "last_synced_project":  store.get("last_synced_project"),
     })))
+}
+
+#[tauri::command]
+async fn clear_config(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    store.clear();
+    store.save().map_err(|e| e.to_string())
 }
 
 // ── File watcher — multi-project architecture ─────────────────────────────────

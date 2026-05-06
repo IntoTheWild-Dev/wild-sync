@@ -27,12 +27,16 @@ async function init() {
   // Check if already configured — go straight to popover if so
   try {
     const config = await invoke("get_config");
-    if (config) {
+    if (config && config.watched_folder && config.designer_name) {
       isFirstLaunch = false;
       populatePopover(config);
       showScreen("popover");
       await invoke("start_watching");
       return;
+    }
+    // Config exists but is stale from an older version — clear it
+    if (config) {
+      try { await invoke("clear_config"); } catch (_) {}
     }
   } catch (e) {
     console.error("Config read failed:", e);
