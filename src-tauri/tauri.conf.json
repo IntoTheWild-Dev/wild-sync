@@ -1,6 +1,6 @@
 {
   "productName": "Wild Sync",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "identifier": "com.intothewild.wildsync",
   "build": {
     "frontendDist": "../src",

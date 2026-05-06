@@ -1,5 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+const { invoke } = window.__TAURI__.core;
+const { open }     = window.__TAURI__.dialog;
+const { listen }   = window.__TAURI__.event;
 
 // ── Screen management ─────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ document.getElementById("name-select").addEventListener("change", () => {
 
 document.getElementById("btn-browse").addEventListener("click", async () => {
   try {
-    const selected = await openDialog({ directory: true, multiple: false });
+    const selected = await open({ directory: true, multiple: false });
     if (selected) {
       const input = document.getElementById("folder-path");
       input.value = selected;
@@ -190,7 +191,7 @@ document.getElementById("btn-open-drive").addEventListener("click", () => {
   invoke("open_drive");
 });
 
-// ─ First launch screen ───────────────────────────────────────────────
+// ── First launch screen ───────────────────────────────────────────────
 
 document.getElementById("btn-copy").addEventListener("click", () => {
   const cmd = 'xattr -cr "/Applications/Wild Sync.app"';
@@ -211,8 +212,6 @@ document.getElementById("btn-continue-setup").addEventListener("click", async ()
 });
 
 // ── Sync status updates from Rust ─────────────────────────────────────
-
-import { listen } from "@tauri-apps/api/event";
 
 listen("sync-status", (event) => {
   const badge = document.getElementById("status-badge");
