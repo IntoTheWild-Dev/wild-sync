@@ -99,7 +99,9 @@ async function loadDesignerNames(destination) {
     });
     nameSelect.disabled = false;
   } catch (e) {
-    nameSelect.innerHTML = '<option value="">Could not load names</option>';
+    console.error("fetch_designer_names failed:", e);
+    nameSelect.innerHTML = `<option value="">⚠ ${e}</option>`;
+    nameSelect.disabled = false;
   }
 
   updateStartButton();

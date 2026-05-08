@@ -112,7 +112,7 @@ fn sa_path(app: &AppHandle) -> Result<PathBuf, String> {
 fn write_rclone_config(sa: &std::path::Path, remote_name: &str, drive_id: &str) -> Result<PathBuf, String> {
     let config_path = std::env::temp_dir().join("wild-sync-rclone.conf");
     let content = format!(
-        "[{remote_name}]\ntype = drive\nscope = drive\nservice_account_file = {}\nteam_drive = {drive_id}\n",
+        "[{remote_name}]\ntype = drive\nscope = drive\nservice_account_file = {}\nteam_drive = {drive_id}\nimpersonate = julia@intothewild.hamburg\n",
         sa.display()
     );
     std::fs::write(&config_path, content)
