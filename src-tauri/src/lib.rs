@@ -234,9 +234,54 @@ async fn clear_config(app: AppHandle) -> Result<(), String> {
 // Each project gets its own 5-second debounce timer so rapid saves in one
 // project don't delay syncs in another.
 //
+// The event loop ONLY stamps timestamps. A separate flush thread polls every
+// 500ms and fires syncs for any project that has been quiet for ≥5s. This
+// means the sync fires even when no further events arrive after a file drop.
+//
 // Example:
-//   ~/Wild Sync Watch/FNB Rebrand/logo.ai   → syncs FNB Rebrand/ to Drive
-//   ~/Wild Sync Watch/Vodacom 2026/draft.mp4 → syncs Vodacom 2026/ to Drive
+//   ~/Wild_Sync_Drive/FNB Rebrand/logo.ai   → syncs FNB Rebrand/ to Drive
+//   ~/Wild_Sync_Drive/Vodacom 2026/draft.mp4 → syncs Vodacom 2026/ to Drive
+
+fn spawn_sync(
+    app: AppHandle,
+    folder: String,
+    designer: String,
+    drive: String,
+    remote: String,
+    project: String,
+) {
+    let _ = app.emit("sync-status", serde_json::json!({
+        "status": "syncing",
+        "project": &project
+    }));
+
+    tauri::async_runtime::spawn(async move {
+        let local_project_folder = format!("{folder}/{project}");
+        match sync_files(&app, &local_project_folder, &designer, &project, &drive, &remote).await {
+            Ok(_) => {
+                use tauri_plugin_store::StoreExt;
+                let now = chrono::Utc::now().to_rfc3339();
+                if let Ok(store) = app.store("config.json") {
+                    store.set("last_sync", serde_json::json!(&now));
+                    store.set("last_synced_project", serde_json::json!(&project));
+                    let _ = store.save();
+                }
+                let _ = app.emit("sync-status", serde_json::json!({
+                    "status": "idle",
+                    "last_sync": now,
+                    "project": project
+                }));
+            }
+            Err(e) => {
+                eprintln!("Sync error ({}): {e}", project);
+                let _ = app.emit("sync-status", serde_json::json!({
+                    "status": "error",
+                    "project": project
+                }));
+            }
+        }
+    });
+}
 
 #[tauri::command]
 async fn start_watching(app: AppHandle) -> Result<(), String> {
@@ -256,13 +301,50 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
     let app_clone = app.clone();
     let watch_root = PathBuf::from(&watched_folder);
 
+    let pending: Arc<Mutex<HashMap<String, Instant>>> = Arc::new(Mutex::new(HashMap::new()));
+
+    // Flush thread — polls every 500ms and fires syncs for quiet projects.
+    // This runs independently of file events so a sync always fires after the
+    // debounce window even if no further events arrive.
+    {
+        let pending_flush   = pending.clone();
+        let app_flush       = app_clone.clone();
+        let folder_flush    = watched_folder.clone();
+        let designer_flush  = designer_name.clone();
+        let drive_flush     = drive_id.clone();
+        let remote_flush    = rclone_remote.clone();
+
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(Duration::from_millis(500));
+
+                let ready: Vec<String> = {
+                    let mut map = pending_flush.lock().unwrap();
+                    let ready: Vec<String> = map.iter()
+                        .filter(|(_, t)| t.elapsed() >= Duration::from_secs(5))
+                        .map(|(k, _)| k.clone())
+                        .collect();
+                    for k in &ready { map.remove(k); }
+                    ready
+                };
+
+                for project in ready {
+                    spawn_sync(
+                        app_flush.clone(),
+                        folder_flush.clone(),
+                        designer_flush.clone(),
+                        drive_flush.clone(),
+                        remote_flush.clone(),
+                        project,
+                    );
+                }
+            }
+        });
+    }
+
+    // Watcher thread — receives file system events and stamps the pending map.
     std::thread::spawn(move || {
         use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
-
-        // Per-project debounce: track the last event time for each subfolder name.
-        // We use a simple manual debounce here — collect events, group by project,
-        // and spawn a sync after 5s of quiet per project.
-        let pending: Arc<Mutex<HashMap<String, Instant>>> = Arc::new(Mutex::new(HashMap::new()));
 
         let pending_tx = pending.clone();
         let (tx, rx) = std::sync::mpsc::channel();
@@ -284,72 +366,11 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
                 Err(_) => continue,
             };
 
-            // Extract the immediate subfolder name for each changed path.
-            let mut projects_touched = std::collections::HashSet::new();
+            let mut map = pending_tx.lock().unwrap();
             for event in &events {
                 if let Some(project) = extract_project_name(&watch_root, &event.path) {
-                    projects_touched.insert(project);
-                }
-            }
-
-            // Update the last-touched timestamp for each project.
-            {
-                let mut map = pending_tx.lock().unwrap();
-                for project in projects_touched {
                     map.insert(project, Instant::now());
                 }
-            }
-
-            // Check all pending projects — if any have been quiet for 5s, sync them.
-            let ready: Vec<String> = {
-                let mut map = pending_tx.lock().unwrap();
-                let ready: Vec<String> = map.iter()
-                    .filter(|(_, t)| t.elapsed() >= Duration::from_secs(5))
-                    .map(|(k, _)| k.clone())
-                    .collect();
-                for k in &ready { map.remove(k); }
-                ready
-            };
-
-            for project_name in ready {
-                let app     = app_clone.clone();
-                let folder  = watched_folder.clone();
-                let designer = designer_name.clone();
-                let drive    = drive_id.clone();
-                let remote   = rclone_remote.clone();
-                let project  = project_name.clone();
-
-                let _ = app.emit("sync-status", serde_json::json!({
-                    "status": "syncing",
-                    "project": project_name
-                }));
-
-                tauri::async_runtime::spawn(async move {
-                    let local_project_folder = format!("{folder}/{project}");
-                    match sync_files(&app, &local_project_folder, &designer, &project, &drive, &remote).await {
-                        Ok(_) => {
-                            use tauri_plugin_store::StoreExt;
-                            let now = chrono::Utc::now().to_rfc3339();
-                            if let Ok(store) = app.store("config.json") {
-                                store.set("last_sync", serde_json::json!(&now));
-                                store.set("last_synced_project", serde_json::json!(&project));
-                                let _ = store.save();
-                            }
-                            let _ = app.emit("sync-status", serde_json::json!({
-                                "status": "idle",
-                                "last_sync": now,
-                                "project": project
-                            }));
-                        }
-                        Err(e) => {
-                            eprintln!("Sync error ({}): {e}", project);
-                            let _ = app.emit("sync-status", serde_json::json!({
-                                "status": "error",
-                                "project": project
-                            }));
-                        }
-                    }
-                });
             }
         }
     });
