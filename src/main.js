@@ -178,11 +178,27 @@ function populatePopover(config) {
   document.getElementById("info-destination").textContent = config.destination_label || "—";
   document.getElementById("info-folder").textContent      =
     config.watched_folder?.replace(/^.*[\\/]([^\\/]+)$/, "~/$1") || "—";
-  document.getElementById("info-last-project").textContent =
-    config.last_synced_project || "Waiting for changes…";
-  document.getElementById("info-last-sync").textContent   = config.last_sync
-    ? formatRelativeTime(config.last_sync)
-    : "Never";
+
+  const lastSyncTime  = config.last_sync        ? new Date(config.last_sync)        : null;
+  const lastErrorTime = config.last_error_time  ? new Date(config.last_error_time)  : null;
+  const hasError = lastErrorTime && (!lastSyncTime || lastErrorTime > lastSyncTime);
+
+  const syncEl  = document.getElementById("info-last-sync");
+  const badge   = document.getElementById("status-badge");
+
+  if (hasError) {
+    const project = config.last_error_project || "unknown project";
+    syncEl.textContent = `Failed — ${project}`;
+    syncEl.classList.add("info-value-error");
+    badge.className   = "status-badge status-error";
+    badge.textContent = "● Error";
+    document.getElementById("info-last-project").textContent = project;
+  } else {
+    syncEl.textContent = lastSyncTime ? formatRelativeTime(config.last_sync) : "Never";
+    syncEl.classList.remove("info-value-error");
+    document.getElementById("info-last-project").textContent =
+      config.last_synced_project || "Waiting for changes…";
+  }
 }
 
 document.getElementById("btn-open-folder").addEventListener("click", () => {
@@ -216,24 +232,32 @@ document.getElementById("btn-continue-setup").addEventListener("click", async ()
 // ── Sync status updates from Rust ─────────────────────────────────────
 
 listen("sync-status", (event) => {
-  const badge = document.getElementById("status-badge");
+  const badge  = document.getElementById("status-badge");
+  const syncEl = document.getElementById("info-last-sync");
   const { status, last_sync, project } = event.payload;
 
   badge.className = "";
   if (status === "syncing") {
     badge.classList.add("status-sync");
     badge.textContent = project ? `● Syncing ${project}…` : "● Syncing…";
+    syncEl.classList.remove("info-value-error");
   } else if (status === "error") {
     badge.classList.add("status-error");
-    badge.textContent = project ? `● Error (${project})` : "● Error";
+    badge.textContent = "● Error";
+    syncEl.textContent = project ? `Failed — ${project}` : "Failed";
+    syncEl.classList.add("info-value-error");
+    if (project) {
+      document.getElementById("info-last-project").textContent = project;
+    }
   } else {
     badge.classList.add("status-idle");
     badge.textContent = "● Synced";
+    syncEl.classList.remove("info-value-error");
     if (project) {
       document.getElementById("info-last-project").textContent = project;
     }
     if (last_sync) {
-      document.getElementById("info-last-sync").textContent = formatRelativeTime(last_sync);
+      syncEl.textContent = formatRelativeTime(last_sync);
     }
   }
 });

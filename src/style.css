@@ -282,6 +282,7 @@ button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
   font-size: 12px;
 }
 .info-label { color: var(--muted); }
+.info-value-error { color: var(--coral) !important; }
 .info-value {
   font-weight: 500;
   color: var(--heading);

@@ -17,8 +17,16 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             setup_tray(app.handle())?;
+            // Register as a login item so it's always running in the background.
+            use tauri_plugin_autostart::ManagerExt;
+            let _ = app.autolaunch().enable();
             let window = app.get_webview_window("main").unwrap();
             window.show().unwrap();
             Ok(())
@@ -216,6 +224,8 @@ async fn get_config(app: AppHandle) -> Result<Option<serde_json::Value>, String>
         "rclone_remote":        store.get("rclone_remote"),
         "last_sync":            store.get("last_sync"),
         "last_synced_project":  store.get("last_synced_project"),
+        "last_error_project":   store.get("last_error_project"),
+        "last_error_time":      store.get("last_error_time"),
     })))
 }
 
@@ -274,9 +284,25 @@ fn spawn_sync(
             }
             Err(e) => {
                 eprintln!("Sync error ({}): {e}", project);
+                // Persist error so the popover shows it even after reopen.
+                let now = chrono::Utc::now().to_rfc3339();
+                use tauri_plugin_store::StoreExt;
+                if let Ok(store) = app.store("config.json") {
+                    store.set("last_error_project", serde_json::json!(&project));
+                    store.set("last_error_time",    serde_json::json!(&now));
+                    let _ = store.save();
+                }
+                // OS notification so the team always knows when something failed.
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app.notification()
+                    .builder()
+                    .title("Wild Sync — sync failed")
+                    .body(format!("Could not sync \"{project}\". Check your connection."))
+                    .show();
                 let _ = app.emit("sync-status", serde_json::json!({
                     "status": "error",
-                    "project": project
+                    "project": project,
+                    "time": now
                 }));
             }
         }
