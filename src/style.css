@@ -109,7 +109,7 @@ select, input[type="text"] {
   -webkit-appearance: none;
   transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2349657a'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath transform='matrix(0.9825369410861639, 0, 0, 0.9825369410861639, -0.9360967184801381, 19.80656303972366)' d='M13.17-2.21C13.46-2.21 13.76-2.33 13.96-2.55L23.03-11.85C23.23-12.05 23.34-12.30 23.34-12.60C23.34-13.21 22.89-13.68 22.28-13.68C21.98-13.68 21.71-13.56 21.52-13.37L13.17-4.84L4.82-13.37C4.63-13.56 4.36-13.68 4.05-13.68C3.45-13.68 2.99-13.21 2.99-12.60C2.99-12.30 3.11-12.05 3.30-11.84L12.38-2.55C12.60-2.33 12.87-2.21 13.17-2.21Z' fill='%2349657a'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 13px 13px; padding-right: 30px; }
 select:focus, input:focus { border-color: var(--slate); box-shadow: 0 0 0 3px rgba(73,101,122,0.15); }
 select:disabled { opacity: 0.4; cursor: not-allowed; }
 select option { background: var(--bg-card); }
@@ -121,6 +121,10 @@ select option { background: var(--bg-card); }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-family: inherit;
   font-weight: 500;
   border: none;
@@ -130,6 +134,12 @@ button {
   transition: opacity 0.15s, transform 0.15s var(--ease);
   white-space: nowrap;
   -webkit-appearance: none;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 button:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
 button:active { transform: translateY(0); opacity: 0.8; }
@@ -255,6 +265,13 @@ button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.btn-settings-row {
+  width: 100%;
+  margin-top: 8px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .status-badge {
