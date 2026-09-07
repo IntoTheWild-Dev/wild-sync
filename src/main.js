@@ -209,6 +209,28 @@ document.getElementById("btn-open-drive").addEventListener("click", () => {
   invoke("open_drive");
 });
 
+document.getElementById("btn-settings").addEventListener("click", async () => {
+  try {
+    await invoke("stop_watching");
+    await invoke("clear_config");
+  } catch (e) {
+    console.error("Failed to reset config:", e);
+  }
+
+  // Reset onboarding form state so it doesn't show stale values.
+  selectedDestination = null;
+  const folderInput = document.getElementById("folder-path");
+  folderInput.value = "";
+  folderInput.classList.remove("has-value");
+  const nameSelect = document.getElementById("name-select");
+  nameSelect.innerHTML = '<option value="">Select a destination first</option>';
+  nameSelect.disabled = true;
+  updateStartButton();
+
+  showScreen("onboarding");
+  await loadDestinations();
+});
+
 // ── First launch screen ───────────────────────────────────────────────
 
 document.getElementById("btn-copy").addEventListener("click", () => {

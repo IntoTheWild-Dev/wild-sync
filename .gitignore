@@ -3,6 +3,7 @@ node_modules/
 
 # Tauri build output
 src-tauri/target/
+src-tauri/gen/
 
 # Sensitive credentials — NEVER commit these
 src-tauri/resources/wild-sync-service-account.json

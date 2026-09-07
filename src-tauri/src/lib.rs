@@ -1,14 +1,22 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager,
+    AppHandle, Emitter, Manager, State,
 };
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
+
+/// Bumped every time watching starts or stops. Watcher/flush threads capture
+/// the generation active when they were spawned and exit once it moves on —
+/// this is how a previous watch session is torn down when the user changes
+/// settings and starts a new one.
+#[derive(Default)]
+struct WatchGeneration(Arc<AtomicU64>);
 
 pub fn run() {
     tauri::Builder::default()
@@ -22,6 +30,7 @@ pub fn run() {
             Some(vec![]),
         ))
         .plugin(tauri_plugin_notification::init())
+        .manage(WatchGeneration::default())
         .setup(|app| {
             setup_tray(app.handle())?;
             // Register as a login item so it's always running in the background.
@@ -38,6 +47,7 @@ pub fn run() {
             get_config,
             clear_config,
             start_watching,
+            stop_watching,
             open_watched_folder,
             open_drive,
         ])
@@ -310,7 +320,15 @@ fn spawn_sync(
 }
 
 #[tauri::command]
-async fn start_watching(app: AppHandle) -> Result<(), String> {
+async fn stop_watching(gen: State<'_, WatchGeneration>) -> Result<(), String> {
+    // Bumping the generation is enough — any running watcher/flush threads
+    // notice the mismatch on their next tick and exit on their own.
+    gen.0.fetch_add(1, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+async fn start_watching(app: AppHandle, gen: State<'_, WatchGeneration>) -> Result<(), String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("config.json").map_err(|e| e.to_string())?;
 
@@ -329,6 +347,12 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
 
     let pending: Arc<Mutex<HashMap<String, Instant>>> = Arc::new(Mutex::new(HashMap::new()));
 
+    // Invalidate any previous watch session and claim this one. Any threads
+    // still running from an earlier start_watching call will see their
+    // captured generation no longer matches and stop themselves.
+    let my_gen = gen.0.fetch_add(1, Ordering::SeqCst) + 1;
+    let gen_handle = gen.0.clone();
+
     // Flush thread — polls every 500ms and fires syncs for quiet projects.
     // This runs independently of file events so a sync always fires after the
     // debounce window even if no further events arrive.
@@ -339,10 +363,15 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
         let designer_flush  = designer_name.clone();
         let drive_flush     = drive_id.clone();
         let remote_flush    = rclone_remote.clone();
+        let gen_flush       = gen_handle.clone();
 
         std::thread::spawn(move || {
             loop {
                 std::thread::sleep(Duration::from_millis(500));
+
+                if gen_flush.load(Ordering::SeqCst) != my_gen {
+                    break; // settings changed / watching stopped — shut down
+                }
 
                 let ready: Vec<String> = {
                     let mut map = pending_flush.lock().unwrap();
@@ -386,7 +415,23 @@ async fn start_watching(app: AppHandle) -> Result<(), String> {
             eprintln!("Watch failed: {e}"); return;
         }
 
-        for result in rx {
+        loop {
+            // Wake up at least every 500ms even with no fs activity so a
+            // stale generation gets noticed promptly instead of only on the
+            // next file event.
+            let result = match rx.recv_timeout(Duration::from_millis(500)) {
+                Ok(result) => result,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    if gen_handle.load(Ordering::SeqCst) != my_gen { break; }
+                    continue;
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            };
+
+            if gen_handle.load(Ordering::SeqCst) != my_gen {
+                break; // settings changed / watching stopped — shut down
+            }
+
             let events = match result {
                 Ok(events) => events,
                 Err(_) => continue,
@@ -418,6 +463,13 @@ fn extract_project_name(watch_root: &PathBuf, changed_path: &PathBuf) -> Option<
     let name = first_component.as_os_str().to_str()?;
     // Skip hidden files/folders (e.g. .DS_Store) and the root itself
     if name.starts_with('.') { return None; }
+    // Skip changes to hidden files anywhere inside the project (e.g. Finder
+    // writing .DS_Store when the folder is opened) — these aren't real content
+    // changes and shouldn't trigger a resync.
+    let is_hidden = relative.components().any(|c| {
+        c.as_os_str().to_str().is_some_and(|s| s.starts_with('.'))
+    });
+    if is_hidden { return None; }
     // Only return if this is actually a subfolder (not a file at root level)
     let candidate = watch_root.join(name);
     if candidate.is_dir() { Some(name.to_string()) } else { None }
